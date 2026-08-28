@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/v22/daemon"
-	"github.com/go-acme/lego/v4/challenge"
+	"github.com/go-acme/lego/v5/challenge"
 	gokitmetrics "github.com/go-kit/kit/metrics"
 	"github.com/rs/zerolog/log"
 	"github.com/sirupsen/logrus"
@@ -303,7 +303,7 @@ func setupServer(staticConfiguration *static.Configuration) (*server.Server, err
 
 	dialerManager := tcp.NewDialerManager(spiffeX509Source)
 	acmeHTTPHandler := getHTTPChallengeHandler(acmeProviders, httpChallengeProvider)
-	managerFactory := service.NewManagerFactory(*staticConfiguration, routinesPool, observabilityMgr, transportManager, proxyBuilder, acmeHTTPHandler)
+	managerFactory := service.NewManagerFactory(*staticConfiguration, routinesPool, observabilityMgr, transportManager, proxyBuilder, acmeHTTPHandler, tlsManager)
 
 	// Router factory
 
@@ -319,6 +319,7 @@ func setupServer(staticConfiguration *static.Configuration) (*server.Server, err
 		providerAggregator,
 		getDefaultsEntrypoints(staticConfiguration),
 		"internal",
+		staticConfiguration.Core != nil && staticConfiguration.Core.StrictTLSOptions,
 	)
 
 	// TLS
@@ -386,7 +387,7 @@ func setupServer(staticConfiguration *static.Configuration) (*server.Server, err
 			}
 
 			if _, ok := resolverNames[rt.TLS.CertResolver]; !ok {
-				log.Error().Err(err).Str(logs.RouterName, rtName).Str("certificateResolver", rt.TLS.CertResolver).
+				log.Error().Str(logs.RouterName, rtName).Str("certificateResolver", rt.TLS.CertResolver).
 					Msg("Router uses a nonexistent certificate resolver")
 			}
 		}

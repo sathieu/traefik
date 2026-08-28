@@ -10,7 +10,6 @@ import (
 	traefiktls "github.com/traefik/traefik/v3/pkg/tls"
 	"github.com/traefik/traefik/v3/pkg/types"
 	"google.golang.org/grpc/codes"
-	"k8s.io/utils/ptr"
 )
 
 const (
@@ -149,9 +148,12 @@ func (r *RouterDeniedEncodedPathCharacters) Map() map[string]struct{} {
 
 // RouterTLSConfig holds the TLS configuration for a router.
 type RouterTLSConfig struct {
-	Options      string         `json:"options,omitempty" toml:"options,omitempty" yaml:"options,omitempty" export:"true"`
-	CertResolver string         `json:"certResolver,omitempty" toml:"certResolver,omitempty" yaml:"certResolver,omitempty" export:"true"`
-	Domains      []types.Domain `json:"domains,omitempty" toml:"domains,omitempty" yaml:"domains,omitempty" export:"true"`
+	Options         string `json:"options,omitempty" toml:"options,omitempty" yaml:"options,omitempty" export:"true"`
+	ResolvedOptions string `json:"-" toml:"-" yaml:"-" label:"-" file:"-" kv:"-" export:"false"`
+	// ConflictingOptions is set when the router conflicts with another router configured with different TLS options for the same host.
+	ConflictingOptions bool           `json:"-" toml:"-" yaml:"-" label:"-" file:"-" kv:"-" export:"false"`
+	CertResolver       string         `json:"certResolver,omitempty" toml:"certResolver,omitempty" yaml:"certResolver,omitempty" export:"true"`
+	Domains            []types.Domain `json:"domains,omitempty" toml:"domains,omitempty" yaml:"domains,omitempty" export:"true"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -168,11 +170,32 @@ type RouterObservabilityConfig struct {
 	// +kubebuilder:validation:Enum=minimal;detailed
 	// +kubebuilder:default=minimal
 	TraceVerbosity otypes.TracingVerbosity `json:"traceVerbosity,omitempty" toml:"traceVerbosity,omitempty" yaml:"traceVerbosity,omitempty" export:"true"`
+
+	// Metadata holds the metadata for this router.
+	// Metadata cannot be user-defined for now.
+	Metadata *ObservabilityMetadata `json:"metadata,omitempty" toml:"-" yaml:"-" label:"-" file:"-" kv:"-"`
 }
 
 // SetDefaults Default values for a RouterObservabilityConfig.
 func (r *RouterObservabilityConfig) SetDefaults() {
 	r.TraceVerbosity = otypes.MinimalVerbosity
+}
+
+// +k8s:deepcopy-gen=true
+
+// ObservabilityMetadata holds the observability metadata configuration.
+type ObservabilityMetadata struct {
+	Ingress *KubernetesIngressMetadata `json:"ingress,omitempty" toml:"-" yaml:"-" label:"-" file:"-" kv:"-"`
+}
+
+// +k8s:deepcopy-gen=true
+
+// KubernetesIngressMetadata holds the Kubernetes Ingress metadata.
+type KubernetesIngressMetadata struct {
+	Namespace   string `json:"namespace,omitempty"`
+	IngressName string `json:"ingressName,omitempty"`
+	ServiceName string `json:"serviceName,omitempty"`
+	ServicePort string `json:"servicePort,omitempty"`
 }
 
 // +k8s:deepcopy-gen=true
@@ -214,7 +237,7 @@ type FailoverError struct {
 
 // SetDefaults Default values for a WRRService.
 func (m *FailoverError) SetDefaults() {
-	m.MaxRequestBodyBytes = ptr.To(FailoverErrorsDefaultMaxRequestBodyBytes)
+	m.MaxRequestBodyBytes = new(FailoverErrorsDefaultMaxRequestBodyBytes)
 }
 
 // +k8s:deepcopy-gen=true
@@ -318,7 +341,7 @@ type Cookie struct {
 	HTTPOnly bool `json:"httpOnly,omitempty" toml:"httpOnly,omitempty" yaml:"httpOnly,omitempty" export:"true"`
 	// SameSite defines the same site policy.
 	// More info: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
-	// +kubebuilder:validation:Enum=none;lax;strict
+	// +kubebuilder:validation:Enum=none;lax;strict;None;Lax;Strict
 	SameSite string `json:"sameSite,omitempty" toml:"sameSite,omitempty" yaml:"sameSite,omitempty" export:"true"`
 	// MaxAge defines the number of seconds until the cookie expires.
 	// When set to a negative number, the cookie expires immediately.
@@ -402,7 +425,7 @@ func (l *ServersLoadBalancer) Merge(other *ServersLoadBalancer) bool {
 
 // SetDefaults Default values for a ServersLoadBalancer.
 func (l *ServersLoadBalancer) SetDefaults() {
-	l.PassHostHeader = ptr.To(DefaultPassHostHeader)
+	l.PassHostHeader = new(DefaultPassHostHeader)
 
 	l.Strategy = BalancerStrategyWRR
 	l.ResponseForwarding = &ResponseForwarding{}
@@ -476,7 +499,7 @@ type ServerHealthCheck struct {
 
 // SetDefaults Default values for a HealthCheck.
 func (h *ServerHealthCheck) SetDefaults() {
-	h.FollowRedirects = ptr.To(true)
+	h.FollowRedirects = new(true)
 	h.Mode = "http"
 	h.Interval = DefaultHealthCheckInterval
 	h.Timeout = DefaultHealthCheckTimeout
